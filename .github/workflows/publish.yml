@@ -1,0 +1,38 @@
+name: Publish to SkillHub
+
+on:
+  workflow_dispatch:
+    inputs:
+      slug:
+        description: "要发布的技能目录名(如 fenziqian-advisor),留空则发布全部含 SKILL.md 的目录"
+        required: false
+        default: ""
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: 安装 SkillHub CLI
+        run: curl -fsSL https://skillhub.cn/install/install.sh | bash -s -- --cli-only --no-self-upgrade
+
+      - name: 发布到 SkillHub
+        env:
+          SKILLHUB_TOKEN: ${{ secrets.SKILLHUB_TOKEN }}
+        run: |
+          export PATH="$HOME/.local/bin:$PATH"
+          target="${{ github.event.inputs.slug }}"
+          if [ -n "$target" ]; then
+            skillhub publish "$target" --changelog "GitHub Actions 自动发布"
+          else
+            for d in */; do
+              if [ -f "${d}SKILL.md" ]; then
+                skillhub publish "$d" --changelog "GitHub Actions 自动发布" || echo "::warning::发布 ${d} 失败(常见原因:版本号未升位)"
+              fi
+            done
+          fi
